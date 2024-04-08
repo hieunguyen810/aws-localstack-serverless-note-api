@@ -1,0 +1,79 @@
+service: note
+
+frameworkVersion: "3"
+plugins:
+  - serverless-localstack
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: local
+  profile: localstack
+  environment:
+    NOTE_TABLE: ${self:service}-${opt:stage, self:provider.stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+      Resource: "*"
+resources:
+  Resources:
+    NotesDynamoDbTable:
+      Type: "AWS::DynamoDB::Table"
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: "NEW_AND_OLD_IMAGES"
+        TableName: ${self:provider.environment.NOTE_TABLE}
+
+custom:
+  localstack:
+    stages:
+      - local
+    host: http://localhost
+    edgePort: 4566
+    autostart: true
+    lambda:
+      mountCode: True
+    docker:
+      sudo: False
+    environment:
+      - AWS_ACCESS_KEY_ID=access_key_id
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_SECRET_ACCESS_KEY=secret
+
+
+functions:
+  noteCreation: # tên function
+    handler: api/note.create 
+    memorySize: 128 
+    description: Create a note. 
+    events: 
+      - http:
+          path: note 
+          method: post 
+  listNotes:
+    handler: api/note.list
+    memorySize: 128
+    description: List all notes
+    events:
+      - http:
+          path: note
+          method: get
+  noteDetails:
+    handler: api/note.get
+    events:
+      - http:
+          path: note/{id}
+          method: get
